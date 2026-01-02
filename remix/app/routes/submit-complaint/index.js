@@ -2,18 +2,65 @@ import { useState } from "react";
 import { Grid, TextField, Button, Alert, Stack } from "@mui/material";
 import MainCard from "ui-component/cards/MainCard";
 
+import { useNavigate } from "@remix-run/react";
+import { useEffect } from "react";
+
+
+//import { Navigate } from "@remix-run/react";
+import { useAuth } from "context/AuthContext";
+
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "services/firebase.client";
+
 export default function SubmitComplaint() {
+  const { user, loading } = useAuth();
+
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/pages/login/login3", { replace: true });
+    }
+  }, [loading, user, navigate]);
 
-  const handleSubmit = (e) => {
+  if (loading) return null;
+  //if (!user) return <Navigate to="/pages/login/login3" replace />;
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSuccess(true);
+    setErrorMsg("");
+    setSuccessMsg("");
 
-    // UI-only for now: reset form to show it "worked"
-    setSubject("");
-    setDescription("");
+    if (!subject.trim() || !description.trim()) {
+      setErrorMsg("Please fill in both subject and description.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      await addDoc(collection(db, "complaints"), {
+        subject: subject.trim(),
+        description: description.trim(),
+        status: "OPEN",
+        createdAt: serverTimestamp(),
+        createdByUid: user.uid,
+        createdByEmail: user.email,
+      });
+
+      setSuccessMsg("Complaint submitted successfully.");
+      setSubject("");
+      setDescription("");
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err?.message || "Failed to submit complaint.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -21,9 +68,15 @@ export default function SubmitComplaint() {
       <Grid item xs={12} md={8} lg={7}>
         <MainCard title="Submit Complaint">
           <Stack spacing={2}>
-            {success && (
-              <Alert severity="success" onClose={() => setSuccess(false)}>
-                Complaint submitted (demo). We’ll connect Firebase next.
+            {successMsg && (
+              <Alert severity="success" onClose={() => setSuccessMsg("")}>
+                {successMsg}
+              </Alert>
+            )}
+
+            {errorMsg && (
+              <Alert severity="error" onClose={() => setErrorMsg("")}>
+                {errorMsg}
               </Alert>
             )}
 
@@ -35,6 +88,7 @@ export default function SubmitComplaint() {
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 required
+                disabled={saving}
               />
 
               <TextField
@@ -46,10 +100,16 @@ export default function SubmitComplaint() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 required
+                disabled={saving}
               />
 
-              <Button type="submit" variant="contained" sx={{ mt: 2 }}>
-                Submit
+              <Button
+                type="submit"
+                variant="contained"
+                sx={{ mt: 2 }}
+                disabled={saving}
+              >
+                {saving ? "Submitting..." : "Submit"}
               </Button>
             </form>
           </Stack>
