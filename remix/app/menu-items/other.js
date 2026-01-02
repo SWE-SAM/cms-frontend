@@ -14,10 +14,10 @@ const other = {
     type: 'group',
     children: [
         {
-            id: 'sample-page',
-            title: 'Sample Page',
+            id: 'Submit Complaint',
+            title: 'Submit Complaint',
             type: 'item',
-            url: '/sample-page',
+            url: '/submit-complaint',
             icon: icons.IconBrandChrome,
             breadcrumbs: false
         },
