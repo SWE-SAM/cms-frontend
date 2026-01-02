@@ -27,6 +27,7 @@
     "@tabler/icons-react": "^2.7.0",
     "apexcharts": "^3.37.1",
     "concurrently": "^8.0.1",
+    "firebase": "^12.7.0",
     "formik": "^2.2.9",
     "framer-motion": "^10.0.1",
     "isbot": "^3.6.5",
