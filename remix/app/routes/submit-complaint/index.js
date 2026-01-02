@@ -1,26 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "@remix-run/react";
 import { Grid, TextField, Button, Alert, Stack } from "@mui/material";
 import MainCard from "ui-component/cards/MainCard";
 
-import { useNavigate } from "@remix-run/react";
-import { useEffect } from "react";
-
-
-//import { Navigate } from "@remix-run/react";
 import { useAuth } from "context/AuthContext";
 
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "services/firebase.client";
 
 export default function SubmitComplaint() {
+  const navigate = useNavigate();
   const { user, loading } = useAuth();
 
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
+
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const navigate = useNavigate();
+
+  // Remix client-side "guard"
   useEffect(() => {
     if (!loading && !user) {
       navigate("/pages/login/login3", { replace: true });
@@ -28,7 +27,7 @@ export default function SubmitComplaint() {
   }, [loading, user, navigate]);
 
   if (loading) return null;
-  //if (!user) return <Navigate to="/pages/login/login3" replace />;
+  if (!user) return null; // while redirecting
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,7 +48,7 @@ export default function SubmitComplaint() {
         status: "OPEN",
         createdAt: serverTimestamp(),
         createdByUid: user.uid,
-        createdByEmail: user.email,
+        createdByEmail: user.email
       });
 
       setSuccessMsg("Complaint submitted successfully.");
@@ -103,12 +102,7 @@ export default function SubmitComplaint() {
                 disabled={saving}
               />
 
-              <Button
-                type="submit"
-                variant="contained"
-                sx={{ mt: 2 }}
-                disabled={saving}
-              >
+              <Button type="submit" variant="contained" sx={{ mt: 2 }} disabled={saving}>
                 {saving ? "Submitting..." : "Submit"}
               </Button>
             </form>
