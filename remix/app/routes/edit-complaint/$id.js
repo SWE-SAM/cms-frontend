@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "@remix-run/react";
 
 import {
@@ -12,7 +12,8 @@ import {
   Select,
   Stack,
   TextField,
-  Typography
+  Typography,
+  Divider,
 } from "@mui/material";
 
 import MainCard from "ui-component/cards/MainCard";
@@ -20,11 +21,21 @@ import MainCard from "ui-component/cards/MainCard";
 import { useAuth } from "context/AuthContext";
 import { db } from "services/firebase.client";
 
-import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 
 export default function EditComplaintPage() {
   const navigate = useNavigate();
-  const { id } = useParams(); // from /edit-complaint/:id
+  const { id } = useParams(); // /edit-complaint/:id
   const { user, loading } = useAuth();
 
   const [role, setRole] = useState(null); // "user" | "admin" | "manager" | "employee"
@@ -34,10 +45,11 @@ export default function EditComplaintPage() {
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("OPEN");
 
-  // for later (manager assigning to employee)
   const [assignedToUid, setAssignedToUid] = useState("");
+  const [employees, setEmployees] = useState([]); // [{ uid, firstName, lastName, email }]
 
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
 
@@ -78,7 +90,7 @@ export default function EditComplaintPage() {
       try {
         const snap = await getDoc(doc(db, "complaints", id));
         if (!snap.exists()) {
-          if (!cancelled) setErr("Complaint not found.");
+          setErr("Complaint not found.");
           return;
         }
 
@@ -103,6 +115,53 @@ export default function EditComplaintPage() {
     };
   }, [user, id]);
 
+  const isAdminOrManager = role === "admin" || role === "manager";
+  const isEmployee = role === "employee";
+  const isOwner = complaint?.createdByUid && user?.uid === complaint.createdByUid;
+  const isAssignedEmployee = isEmployee && complaint?.assignedToUid === user?.uid;
+
+  // UI permissions aligned with your rules + intent:
+  // - Admin/Manager: edit everything + assign + delete
+  // - Owner (user): edit subject/description; delete (allowed by rules)
+  // - Employee assigned: can only edit status
+  const canEditUserFields = isAdminOrManager || isOwner;
+  const canEditStatus = isAdminOrManager || isAssignedEmployee;
+  const canAssign = isAdminOrManager;
+  const canDelete = isAdminOrManager || isOwner;
+
+  // Load employees list for assign dropdown (admin/manager only)
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadEmployees() {
+      if (!user || !role || !canAssign) return;
+
+      try {
+        const q = query(collection(db, "users"), where("role", "==", "employee"));
+        const snap = await getDocs(q);
+        const rows = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            uid: d.id,
+            firstName: data.firstName || "",
+            lastName: data.lastName || "",
+            email: data.email || "",
+          };
+        });
+
+        if (!cancelled) setEmployees(rows);
+      } catch (e) {
+        console.error(e);
+        // Don’t hard-fail the page if employees can’t load
+      }
+    }
+
+    loadEmployees();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, role, canAssign]);
+
   if (loading) return null;
   if (!user) return null;
 
@@ -121,43 +180,16 @@ export default function EditComplaintPage() {
     );
   }
 
-  if (err) {
+  // Optional: if employee tries to open a complaint not assigned to them, just block UI.
+  // Your rules should already block reads, but this avoids weird states if something cached.
+  if (complaint && isEmployee && !isAssignedEmployee) {
     return (
       <Grid container spacing={3}>
         <Grid item xs={12} md={8} lg={7}>
           <MainCard title="Complaint">
-            <Alert severity="error">{err}</Alert>
-            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-              <Button variant="outlined" onClick={() => navigate(-1)}>
-                Back
-              </Button>
-            </Stack>
-          </MainCard>
-        </Grid>
-      </Grid>
-    );
-  }
-
-  // ---------- PERMISSIONS ----------
-  const isOwner = complaint?.createdByUid && user?.uid === complaint.createdByUid;
-  const isAdminOrManager = role === "admin" || role === "manager";
-  const isEmployee = role === "employee";
-  const isAssignedEmployee = isEmployee && complaint?.assignedToUid === user?.uid;
-
-  // who can view this complaint at all?
-  const canView = isAdminOrManager || isOwner || isAssignedEmployee;
-
-  // what can they edit?
-  const canEditDetails = isAdminOrManager || isOwner;         // subject/description
-  const canEditStatus = isAdminOrManager || isAssignedEmployee; // status
-  const canEditAssignment = isAdminOrManager;                 // assignedToUid (later)
-
-  if (!canView) {
-    return (
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={8} lg={7}>
-          <MainCard title="Complaint">
-            <Alert severity="error">You don’t have permission to view this complaint.</Alert>
+            <Alert severity="error">
+              You don’t have permission to view this complaint.
+            </Alert>
             <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
               <Button variant="outlined" onClick={() => navigate(-1)}>
                 Back
@@ -172,48 +204,55 @@ export default function EditComplaintPage() {
   const handleSave = async () => {
     setErr("");
     setOk("");
-
     if (!complaint) return;
 
-    // if they can edit details, enforce required fields
-    if (canEditDetails) {
+    // nothing editable?
+    if (!canEditUserFields && !canEditStatus && !canAssign) {
+      setErr("You don’t have permission to edit this complaint.");
+      return;
+    }
+
+    // Only validate fields the user can edit
+    if (canEditUserFields) {
       if (!subject.trim() || !description.trim()) {
         setErr("Subject and description are required.");
         return;
       }
     }
 
-    // if they can’t edit anything, stop
-    if (!canEditDetails && !canEditStatus && !canEditAssignment) {
-      setErr("You don’t have permission to edit this complaint.");
-      return;
-    }
-
     try {
       setSaving(true);
 
       const updates = {
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       };
 
-      // details (owner or admin/manager)
-      if (canEditDetails) {
+      if (canEditUserFields) {
         updates.subject = subject.trim();
         updates.description = description.trim();
       }
 
-      // status (admin/manager OR assigned employee)
       if (canEditStatus) {
         updates.status = status;
       }
 
-      // assignment (admin/manager only — you said later, so keep UI hidden for now)
-      if (canEditAssignment) {
-        updates.assignedToUid = assignedToUid || null;
+      if (canAssign) {
+        const uid = assignedToUid || null;
+        updates.assignedToUid = uid;
+
+        // optional denormalized fields
+        if (!uid) {
+          updates.assignedToEmail = null;
+          updates.assignedToName = null;
+        } else {
+          const emp = employees.find((e) => e.uid === uid);
+          updates.assignedToEmail = emp?.email || null;
+          const name = `${emp?.firstName || ""} ${emp?.lastName || ""}`.trim();
+          updates.assignedToName = name || null;
+        }
       }
 
       await updateDoc(doc(db, "complaints", complaint.id), updates);
-
       setOk("Saved.");
     } catch (e) {
       console.error(e);
@@ -223,33 +262,50 @@ export default function EditComplaintPage() {
     }
   };
 
+  const handleDelete = async () => {
+    setErr("");
+    setOk("");
+    if (!complaint) return;
+
+    if (!canDelete) {
+      setErr("You don’t have permission to delete this complaint.");
+      return;
+    }
+
+    const ok = window.confirm(
+      "Delete this complaint permanently? This cannot be undone."
+    );
+    if (!ok) return;
+
+    try {
+      setDeleting(true);
+      await deleteDoc(doc(db, "complaints", complaint.id));
+      navigate("/pages/view-complaint", { replace: true });
+    } catch (e) {
+      console.error(e);
+      setErr(e?.message || "Failed to delete complaint.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Grid container spacing={3}>
       <Grid item xs={12} md={8} lg={7}>
         <MainCard title="Complaint">
           <Stack spacing={2}>
+            {err && <Alert severity="error">{err}</Alert>}
             {ok && (
               <Alert severity="success" onClose={() => setOk("")}>
                 {ok}
               </Alert>
-            )}
-            {err && <Alert severity="error">{err}</Alert>}
-
-            {/* Helpful role hint (optional) */}
-            {!canEditDetails && canEditStatus && (
-              <Alert severity="info">
-                You’re assigned to this complaint. You can update the status only.
-              </Alert>
-            )}
-            {!canEditDetails && !canEditStatus && (
-              <Alert severity="info">Read-only view.</Alert>
             )}
 
             <TextField
               label="Subject"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              disabled={saving || !canEditDetails}
+              disabled={saving || deleting || !canEditUserFields}
               fullWidth
             />
 
@@ -257,53 +313,82 @@ export default function EditComplaintPage() {
               label="Description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              disabled={saving || !canEditDetails}
+              disabled={saving || deleting || !canEditUserFields}
               fullWidth
               multiline
               rows={6}
             />
 
-            {/* Status control: admin/manager OR assigned employee */}
-            {canEditStatus && (
+            <Divider />
+
+            {/* Status: admin/manager OR assigned employee */}
+            <FormControl fullWidth>
+              <InputLabel id="status-label">Status</InputLabel>
+              <Select
+                labelId="status-label"
+                label="Status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                disabled={saving || deleting || !canEditStatus}
+              >
+                <MenuItem value="OPEN">OPEN</MenuItem>
+                <MenuItem value="IN_PROGRESS">IN_PROGRESS</MenuItem>
+                <MenuItem value="RESOLVED">RESOLVED</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Assignment: admin/manager only */}
+            {canAssign && (
               <FormControl fullWidth>
-                <InputLabel id="status-label">Status</InputLabel>
+                <InputLabel id="assign-label">Assign to employee</InputLabel>
                 <Select
-                  labelId="status-label"
-                  label="Status"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  disabled={saving || !canEditStatus}
+                  labelId="assign-label"
+                  label="Assign to employee"
+                  value={assignedToUid}
+                  onChange={(e) => setAssignedToUid(e.target.value)}
+                  disabled={saving || deleting}
                 >
-                  <MenuItem value="OPEN">OPEN</MenuItem>
-                  <MenuItem value="IN_PROGRESS">IN_PROGRESS</MenuItem>
-                  <MenuItem value="RESOLVED">RESOLVED</MenuItem>
+                  <MenuItem value="">Unassigned</MenuItem>
+                  {employees.map((e) => (
+                    <MenuItem key={e.uid} value={e.uid}>
+                      {`${(e.firstName || "").trim()} ${(e.lastName || "").trim()}`.trim() ||
+                        e.email ||
+                        e.uid}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             )}
 
-            {/* Assignment UI: you said "next stage", so keep it hidden for now.
-                If you still want it visible for admin/manager now, wrap this in {canEditAssignment && (...)} */}
-            {false && canEditAssignment && (
-              <TextField
-                label="Assigned To UID (manager feature later)"
-                value={assignedToUid}
-                onChange={(e) => setAssignedToUid(e.target.value)}
-                disabled={saving}
-                fullWidth
-              />
-            )}
-
-            <Stack direction="row" spacing={1}>
-              <Button variant="outlined" onClick={() => navigate(-1)} disabled={saving}>
+            <Stack direction="row" spacing={1} justifyContent="space-between">
+              <Button
+                variant="outlined"
+                onClick={() => navigate(-1)}
+                disabled={saving || deleting}
+              >
                 Back
               </Button>
-              <Button
-                variant="contained"
-                onClick={handleSave}
-                disabled={saving || (!canEditDetails && !canEditStatus && !canEditAssignment)}
-              >
-                {saving ? "Saving…" : "Save"}
-              </Button>
+
+              <Stack direction="row" spacing={1}>
+                {canDelete && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={handleDelete}
+                    disabled={saving || deleting}
+                  >
+                    {deleting ? "Deleting…" : "Delete"}
+                  </Button>
+                )}
+
+                <Button
+                  variant="contained"
+                  onClick={handleSave}
+                  disabled={saving || deleting || (!canEditUserFields && !canEditStatus && !canAssign)}
+                >
+                  {saving ? "Saving…" : "Save"}
+                </Button>
+              </Stack>
             </Stack>
           </Stack>
         </MainCard>
