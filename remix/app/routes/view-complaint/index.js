@@ -4,6 +4,7 @@ import { useNavigate } from "@remix-run/react";
 import {
   Alert,
   Box,
+  Button,              // ✅ add
   Chip,
   CircularProgress,
   Divider,
@@ -34,14 +35,12 @@ export default function ViewComplaintPage() {
   const [complaints, setComplaints] = useState([]);
   const [err, setErr] = useState("");
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!loading && !user) {
       navigate("/pages/login/login3", { replace: true });
     }
   }, [loading, user, navigate]);
 
-  // Load role from users/{uid}
   useEffect(() => {
     let cancelled = false;
 
@@ -52,14 +51,12 @@ export default function ViewComplaintPage() {
         const snap = await getDoc(doc(db, "users", user.uid));
         const data = snap.exists() ? snap.data() : null;
 
-        if (!cancelled) {
-          setRole(data?.role || "user");
-        }
+        if (!cancelled) setRole(data?.role || "user");
       } catch (e) {
         console.error(e);
         if (!cancelled) {
           setErr(e?.message || "Failed to load user role.");
-          setRole("user"); // safe fallback
+          setRole("user");
         }
       }
     }
@@ -70,26 +67,18 @@ export default function ViewComplaintPage() {
     };
   }, [user]);
 
-  // Build query based on role
   const complaintsQuery = useMemo(() => {
     if (!user || !role) return null;
 
     const base = collection(db, "complaints");
 
-    // Admin: see everything
     if (role === "admin") {
       return query(base, orderBy("createdAt", "desc"));
     }
 
-    // Normal user: only their own
-    return query(
-      base,
-      where("createdByUid", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
+    return query(base, where("createdByUid", "==", user.uid), orderBy("createdAt", "desc"));
   }, [user, role]);
 
-  // Subscribe
   useEffect(() => {
     if (!complaintsQuery) return;
 
@@ -109,7 +98,7 @@ export default function ViewComplaintPage() {
   }, [complaintsQuery]);
 
   if (loading) return null;
-  if (!user) return null; // while redirecting
+  if (!user) return null;
 
   if (!role) {
     return (
@@ -133,9 +122,7 @@ export default function ViewComplaintPage() {
           <Stack spacing={2}>
             {err && <Alert severity="error">{err}</Alert>}
 
-            {!err && complaints.length === 0 && (
-              <Alert severity="info">No complaints found.</Alert>
-            )}
+            {!err && complaints.length === 0 && <Alert severity="info">No complaints found.</Alert>}
 
             {complaints.map((c) => {
               const status = (c.status || "OPEN").toUpperCase();
@@ -150,51 +137,38 @@ export default function ViewComplaintPage() {
                     borderRadius: 2
                   }}
                 >
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    spacing={2}
-                  >
-                    <Typography variant="h5">
-                      {c.subject || "(No subject)"}
-                    </Typography>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
+                    <Typography variant="h5">{c.subject || "(No subject)"}</Typography>
 
-                    <Chip
-                      label={status}
-                      size="small"
-                      color={
-                        status === "OPEN"
-                          ? "warning"
-                          : status === "IN_PROGRESS"
-                          ? "info"
-                          : "success"
-                      }
-                    />
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip
+                        label={status}
+                        size="small"
+                        color={status === "OPEN" ? "warning" : status === "IN_PROGRESS" ? "info" : "success"}
+                      />
+
+                      {/* ✅ Edit button */}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => navigate(`/edit-complaint/${c.id}`)}
+                      >
+                        Edit
+                      </Button>
+                    </Stack>
                   </Stack>
 
-                  <Typography
-                    variant="body2"
-                    sx={{ mt: 1, whiteSpace: "pre-wrap" }}
-                  >
+                  <Typography variant="body2" sx={{ mt: 1, whiteSpace: "pre-wrap" }}>
                     {c.description || ""}
                   </Typography>
 
                   <Divider sx={{ my: 1.5 }} />
 
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={1}
-                    justifyContent="space-between"
-                  >
-                    <Typography variant="caption">
-                      By: {c.createdByEmail || "unknown"}
-                    </Typography>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="space-between">
+                    <Typography variant="caption">By: {c.createdByEmail || "unknown"}</Typography>
 
                     <Typography variant="caption">
-                      {c.createdAt?.toDate
-                        ? c.createdAt.toDate().toLocaleString()
-                        : ""}
+                      {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString() : ""}
                     </Typography>
                   </Stack>
                 </Box>
