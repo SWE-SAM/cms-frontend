@@ -68,16 +68,32 @@ export default function ViewComplaintPage() {
   }, [user]);
 
   const complaintsQuery = useMemo(() => {
-    if (!user || !role) return null;
+  if (!user || !role) return null;
 
-    const base = collection(db, "complaints");
+  const base = collection(db, "complaints");
 
-    if (role === "admin") {
+    // Admin + Manager: see everything
+    if (role === "admin" || role === "manager") {
       return query(base, orderBy("createdAt", "desc"));
     }
 
-    return query(base, where("createdByUid", "==", user.uid), orderBy("createdAt", "desc"));
+    // Employee: only assigned to them
+    if (role === "employee") {
+      return query(
+        base,
+        where("assignedToUid", "==", user.uid),
+        orderBy("createdAt", "desc")
+      );
+    }
+
+    // Normal user: only their own
+    return query(
+      base,
+      where("createdByUid", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
   }, [user, role]);
+
 
   useEffect(() => {
     if (!complaintsQuery) return;
@@ -153,7 +169,7 @@ export default function ViewComplaintPage() {
                         variant="outlined"
                         onClick={() => navigate(`/edit-complaint/${c.id}`)}
                       >
-                        Edit
+                        View
                       </Button>
                     </Stack>
                   </Stack>
