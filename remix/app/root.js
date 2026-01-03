@@ -54,10 +54,10 @@ export const links = () => [
 // export meta
 export const meta = () => ({
   charset: 'utf-8',
-  title: 'Berry - React Material Admin Dashboard Template',
+  title: 'Complaint Management System Application',
   viewport: 'width=device-width,initial-scale=1',
   description:
-    'Start your next React project with Berry admin template. It build with Reactjs, Material-UI, Redux, and Hook for faster web development.'
+    'Sam T Complaint Management System Application built using React, Material-UI, and Remix Run framework.'
 });
 
 // ================================|| APP ||================================ //
@@ -70,29 +70,29 @@ export default function App() {
         <meta name="theme-color" content="#2296f3" />
         <meta
           name="keywords"
-          content="react admin template, material-ui react dashboard template, reactjs admin template, reactjs dashboard, react backend template"
+          content="Complaint Management System"
         />
         <meta name="author" content="CodedThemes" />
         <meta property="og:locale" content="en_US" />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://berrydashboard.com/" />
+        <meta property="og:url" content="Complaint Management System" />
         <meta property="og:site_name" content="berrydashboard.com" />
-        <meta property="article:publisher" content="https://www.facebook.com/codedthemes" />
-        <meta property="og:title" content="Berry - React Material Dashboard Template" />
+        <meta property="article:publisher" content="Complaint Management System" />
+        <meta property="og:title" content="Complaint Management System Application" />
         <meta
           property="og:description"
-          content="Berry Dashboard is made for the faster web application development built using Material-UI, Reactjs, Redux & Hook API."
+          content="Sam T Complaint Management System Application built using React, Material-UI, and Remix Run framework."
         />
-        <meta property="og:image" content="https://berrydashboard.com/og-image/og-facebook.png" />
+        <meta property="og:image" content="Complaint Management System" />
         <meta property="twitter:card" content="summary_large_image" />
-        <meta property="twitter:url" content="https://berrydashboard.com" />
-        <meta property="twitter:title" content="Berry - React Material Dashboard Template" />
+        <meta property="twitter:url" content="Complaint Management System" />
+        <meta property="twitter:title" content="Complaint Management System" />
         <meta
           property="twitter:description"
-          content="Berry Dashboard is made for the faster web application development built using Material-UI, Reactjs, Redux & Hook API."
+          content="Sam T Complaint Management System Application built using React, Material-UI, and Remix Run framework."
         />
-        <meta property="twitter:image" content="https://berrydashboard.com/og-image/og-twitter.png" />
-        <meta name="twitter:creator" content="@codedthemes" />
+        <meta property="twitter:image" content="Complaint Management System" />
+        <meta name="twitter:creator" content="Complaint Management System" />
         <Links /> {typeof document === 'undefined' ? '__STYLES__' : null}
       </head>
 

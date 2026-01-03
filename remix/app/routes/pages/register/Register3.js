@@ -28,10 +28,20 @@ const Register = () => {
                             <AuthCardWrapper>
                                 <Grid container spacing={2} alignItems="center" justifyContent="center">
                                     <Grid item sx={{ mb: 3 }}>
-                                        <Link to="#">
-                                            <Logo />
-                                        </Link>
+                                        <Typography
+                                            component={Link}
+                                            to="/pages/login/login3"
+                                            variant="h3"
+                                            sx={{
+                                                textDecoration: 'none',
+                                                fontWeight: 600,
+                                                color: theme.palette.primary.main
+                                            }}
+                                        >
+                                            Complaint Management System
+                                        </Typography>
                                     </Grid>
+
                                     <Grid item xs={12}>
                                         <Grid
                                             container
