@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "@remix-run/react";
 
 import {
@@ -47,6 +47,9 @@ export default function EditComplaintPage() {
 
   const [assignedToUid, setAssignedToUid] = useState("");
   const [employees, setEmployees] = useState([]); // [{ uid, firstName, lastName, email }]
+
+  // ✅ NEW: employee comment field
+  const [employeeComment, setEmployeeComment] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -102,6 +105,9 @@ export default function EditComplaintPage() {
           setDescription(data.description || "");
           setStatus((data.status || "OPEN").toUpperCase());
           setAssignedToUid(data.assignedToUid || "");
+
+          // ✅ NEW
+          setEmployeeComment(data.employeeComment || "");
         }
       } catch (e) {
         console.error(e);
@@ -123,11 +129,14 @@ export default function EditComplaintPage() {
   // UI permissions aligned with your rules + intent:
   // - Admin/Manager: edit everything + assign + delete
   // - Owner (user): edit subject/description; delete (allowed by rules)
-  // - Employee assigned: can only edit status
+  // - Employee assigned: can only edit status + employeeComment
   const canEditUserFields = isAdminOrManager || isOwner;
   const canEditStatus = isAdminOrManager || isAssignedEmployee;
   const canAssign = isAdminOrManager;
   const canDelete = isAdminOrManager || isOwner;
+
+  // ✅ NEW: comment permission
+  const canEditEmployeeComment = isAdminOrManager || isAssignedEmployee;
 
   // Load employees list for assign dropdown (admin/manager only)
   useEffect(() => {
@@ -152,7 +161,6 @@ export default function EditComplaintPage() {
         if (!cancelled) setEmployees(rows);
       } catch (e) {
         console.error(e);
-        // Don’t hard-fail the page if employees can’t load
       }
     }
 
@@ -180,8 +188,6 @@ export default function EditComplaintPage() {
     );
   }
 
-  // Optional: if employee tries to open a complaint not assigned to them, just block UI.
-  // Your rules should already block reads, but this avoids weird states if something cached.
   if (complaint && isEmployee && !isAssignedEmployee) {
     return (
       <Grid container spacing={3}>
@@ -206,13 +212,11 @@ export default function EditComplaintPage() {
     setOk("");
     if (!complaint) return;
 
-    // nothing editable?
-    if (!canEditUserFields && !canEditStatus && !canAssign) {
+    if (!canEditUserFields && !canEditStatus && !canAssign && !canEditEmployeeComment) {
       setErr("You don’t have permission to edit this complaint.");
       return;
     }
 
-    // Only validate fields the user can edit
     if (canEditUserFields) {
       if (!subject.trim() || !description.trim()) {
         setErr("Subject and description are required.");
@@ -236,11 +240,15 @@ export default function EditComplaintPage() {
         updates.status = status;
       }
 
+      // ✅ NEW: employee comment
+      if (canEditEmployeeComment) {
+        updates.employeeComment = employeeComment.trim();
+      }
+
       if (canAssign) {
         const uid = assignedToUid || null;
         updates.assignedToUid = uid;
 
-        // optional denormalized fields
         if (!uid) {
           updates.assignedToEmail = null;
           updates.assignedToName = null;
@@ -337,6 +345,22 @@ export default function EditComplaintPage() {
               </Select>
             </FormControl>
 
+            {/* ✅ NEW: employee comments */}
+            <TextField
+              label="Employee Comment"
+              value={employeeComment}
+              onChange={(e) => setEmployeeComment(e.target.value)}
+              disabled={saving || deleting || !canEditEmployeeComment}
+              fullWidth
+              multiline
+              rows={3}
+              helperText={
+                canEditEmployeeComment
+                  ? "Employees can add notes here. Admin/Manager can also edit."
+                  : "Only the assigned employee (or admin/manager) can edit this."
+              }
+            />
+
             {/* Assignment: admin/manager only */}
             {canAssign && (
               <FormControl fullWidth>
@@ -384,7 +408,11 @@ export default function EditComplaintPage() {
                 <Button
                   variant="contained"
                   onClick={handleSave}
-                  disabled={saving || deleting || (!canEditUserFields && !canEditStatus && !canAssign)}
+                  disabled={
+                    saving ||
+                    deleting ||
+                    (!canEditUserFields && !canEditStatus && !canAssign && !canEditEmployeeComment)
+                  }
                 >
                   {saving ? "Saving…" : "Save"}
                 </Button>
