@@ -1,66 +1,195 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
+import { useNavigate } from "@remix-run/react";
 
-// material-ui
-import { Grid } from '@mui/material';
+// MUI
+import { Grid, Typography, Button, Alert } from "@mui/material";
 
-// project imports
-import { gridSpacing } from 'store/constant';
-import EarningCard from 'components/dashboard/EarningCard';
-import TotalOrderLineCard from 'components/dashboard/TotalOrderLineCard';
-import TotalIncomeDarkCard from 'components/dashboard/TotalIncomeDarkCard';
-import TotalIncomeLightCard from 'components/dashboard/TotalIncomeLightCard';
-import TotalGrowthBarCard from 'components/dashboard/TotalGrowthBarCard';
-import PopularCard from 'components/dashboard/PopularCard';
+// Project
+import MainCard from "ui-component/cards/MainCard";
+import { useAuth } from "context/AuthContext";
+import { db } from "services/firebase.client";
 
-// meta export
+// Firestore
+import {
+  collection,
+  doc,
+  getDoc,
+  getCountFromServer,
+  query,
+  where
+} from "firebase/firestore";
+
+// Page metadata
 export const meta = () => ({
-    title: 'Complaint Management System Application',
-    description:
-        'Complaint Management System Application.'
+  title: "Complaint Management System",
+  description: "Dashboard"
 });
 
-// ==============================|| DEFAULT DASHBOARD ||============================== //
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
 
-const Dashboard = () => {
-    const [isLoading, setLoading] = useState(true);
-    useEffect(() => {
-        setLoading(false);
-    }, []);
+  // role: user | employee | manager | admin
+  const [role, setRole] = useState(null);
 
-    return (
-        <Grid container spacing={gridSpacing}>
-            <Grid item xs={12}>
-                <Grid container spacing={gridSpacing}>
-                    <Grid item lg={4} md={6} sm={6} xs={12}>
-                        <EarningCard isLoading={isLoading} />
-                    </Grid>
-                    <Grid item lg={4} md={6} sm={6} xs={12}>
-                        <TotalOrderLineCard isLoading={isLoading} />
-                    </Grid>
-                    <Grid item lg={4} md={12} sm={12} xs={12}>
-                        <Grid container spacing={gridSpacing}>
-                            <Grid item sm={6} xs={12} md={6} lg={12}>
-                                <TotalIncomeDarkCard isLoading={isLoading} />
-                            </Grid>
-                            <Grid item sm={6} xs={12} md={6} lg={12}>
-                                <TotalIncomeLightCard isLoading={isLoading} />
-                            </Grid>
-                        </Grid>
-                    </Grid>
-                </Grid>
-            </Grid>
-            <Grid item xs={12}>
-                <Grid container spacing={gridSpacing}>
-                    <Grid item xs={12} md={8}>
-                        <TotalGrowthBarCard isLoading={isLoading} />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                        <PopularCard isLoading={isLoading} />
-                    </Grid>
-                </Grid>
-            </Grid>
+  // simple stats object
+  const [stats, setStats] = useState({
+    total: 0,
+    open: 0,
+    inProgress: 0,
+    resolved: 0
+  });
+
+  const [error, setError] = useState("");
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/pages/login/login3", { replace: true });
+    }
+  }, [loading, user, navigate]);
+
+  // Load the user role from Firestore
+  useEffect(() => {
+    if (!user) return;
+
+    async function loadRole() {
+      try {
+        const snap = await getDoc(doc(db, "users", user.uid));
+        setRole(snap.exists() ? snap.data().role : "user");
+      } catch (e) {
+        console.error(e);
+        setError("Failed to load user role");
+      }
+    }
+
+    loadRole();
+  }, [user]);
+
+  // Load complaint counts based on role
+  useEffect(() => {
+    if (!user || !role) return;
+
+    async function loadStats() {
+      try {
+        const complaintsRef = collection(db, "complaints");
+
+        // Decide which complaints this user is allowed to see
+        let baseQuery;
+
+        if (role === "admin" || role === "manager") {
+          // Admin / manager see everything
+          baseQuery = query(complaintsRef);
+        } else if (role === "employee") {
+          // Employees only see complaints assigned to them
+          baseQuery = query(
+            complaintsRef,
+            where("assignedToUid", "==", user.uid)
+          );
+        } else {
+          // Normal users only see complaints they created
+          baseQuery = query(
+            complaintsRef,
+            where("createdByUid", "==", user.uid)
+          );
+        }
+
+        // Count totals by status
+        const totalSnap = await getCountFromServer(baseQuery);
+
+        const openSnap = await getCountFromServer(
+          query(baseQuery, where("status", "==", "OPEN"))
+        );
+
+        const inProgressSnap = await getCountFromServer(
+          query(baseQuery, where("status", "==", "IN_PROGRESS"))
+        );
+
+        const resolvedSnap = await getCountFromServer(
+          query(baseQuery, where("status", "==", "RESOLVED"))
+        );
+
+        setStats({
+          total: totalSnap.data().count,
+          open: openSnap.data().count,
+          inProgress: inProgressSnap.data().count,
+          resolved: resolvedSnap.data().count
+        });
+      } catch (e) {
+        console.error(e);
+        setError("Failed to load dashboard data");
+      }
+    }
+
+    loadStats();
+  }, [user, role]);
+
+  if (!user || !role) return null;
+
+  return (
+    <Grid container spacing={3}>
+      <Grid item xs={12}>
+        <MainCard title="Dashboard">
+          <Typography variant="body1">
+            Logged in as: <strong>{role}</strong>
+          </Typography>
+        </MainCard>
+      </Grid>
+
+      {error && (
+        <Grid item xs={12}>
+          <Alert severity="error">{error}</Alert>
         </Grid>
-    );
-};
+      )}
 
-export default Dashboard;
+      {/* Stats */}
+      <Grid item xs={12} md={3}>
+        <MainCard>
+          <Typography variant="h6">Total complaints</Typography>
+          <Typography variant="h3">{stats.total}</Typography>
+        </MainCard>
+      </Grid>
+
+      <Grid item xs={12} md={3}>
+        <MainCard>
+          <Typography variant="h6">Open</Typography>
+          <Typography variant="h3">{stats.open}</Typography>
+        </MainCard>
+      </Grid>
+
+      <Grid item xs={12} md={3}>
+        <MainCard>
+          <Typography variant="h6">In progress</Typography>
+          <Typography variant="h3">{stats.inProgress}</Typography>
+        </MainCard>
+      </Grid>
+
+      <Grid item xs={12} md={3}>
+        <MainCard>
+          <Typography variant="h6">Resolved</Typography>
+          <Typography variant="h3">{stats.resolved}</Typography>
+        </MainCard>
+      </Grid>
+
+      {/* Quick actions */}
+      <Grid item xs={12}>
+        <MainCard title="Actions">
+          <Button
+            variant="contained"
+            sx={{ mr: 1 }}
+            onClick={() => navigate("/submit-complaint")}
+          >
+            Submit complaint
+          </Button>
+
+          <Button
+            variant="outlined"
+            onClick={() => navigate("/pages/view-complaint")}
+          >
+            View complaints
+          </Button>
+        </MainCard>
+      </Grid>
+    </Grid>
+  );
+}
