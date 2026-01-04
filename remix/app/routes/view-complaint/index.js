@@ -4,9 +4,8 @@ import { useNavigate } from "@remix-run/react";
 import {
   Alert,
   Box,
-  Button,              // ✅ add
+  Button,
   Chip,
-  CircularProgress,
   Divider,
   Grid,
   Stack,
@@ -14,9 +13,9 @@ import {
 } from "@mui/material";
 
 import MainCard from "ui-component/cards/MainCard";
-
 import { useAuth } from "context/AuthContext";
 import { db } from "services/firebase.client";
+
 import {
   collection,
   doc,
@@ -31,53 +30,41 @@ export default function ViewComplaintPage() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
 
-  const [role, setRole] = useState(null); // "user" | "admin"
+  const [role, setRole] = useState("");
   const [complaints, setComplaints] = useState([]);
-  const [err, setErr] = useState("");
+  const [error, setError] = useState("");
 
+  // Redirect if not logged in
   useEffect(() => {
     if (!loading && !user) {
       navigate("/pages/login/login3", { replace: true });
     }
   }, [loading, user, navigate]);
 
+  // Load user role
   useEffect(() => {
-    let cancelled = false;
+    if (!user) return;
 
-    async function loadRole() {
-      if (!user) return;
-
-      try {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        const data = snap.exists() ? snap.data() : null;
-
-        if (!cancelled) setRole(data?.role || "user");
-      } catch (e) {
-        console.error(e);
-        if (!cancelled) {
-          setErr(e?.message || "Failed to load user role.");
-          setRole("user");
-        }
-      }
-    }
-
-    loadRole();
-    return () => {
-      cancelled = true;
-    };
+    getDoc(doc(db, "users", user.uid))
+      .then((snap) => {
+        setRole(snap.exists() ? snap.data().role || "user" : "user");
+      })
+      .catch(() => {
+        setError("Failed to load user role.");
+        setRole("user");
+      });
   }, [user]);
 
+  // Build query based on role
   const complaintsQuery = useMemo(() => {
-  if (!user || !role) return null;
+    if (!user || !role) return null;
 
-  const base = collection(db, "complaints");
+    const base = collection(db, "complaints");
 
-    // Admin + Manager: see everything
     if (role === "admin" || role === "manager") {
       return query(base, orderBy("createdAt", "desc"));
     }
 
-    // Employee: only assigned to them
     if (role === "employee") {
       return query(
         base,
@@ -86,7 +73,6 @@ export default function ViewComplaintPage() {
       );
     }
 
-    // Normal user: only their own
     return query(
       base,
       where("createdByUid", "==", user.uid),
@@ -94,51 +80,31 @@ export default function ViewComplaintPage() {
     );
   }, [user, role]);
 
-
+  // Subscribe to complaints
   useEffect(() => {
     if (!complaintsQuery) return;
 
-    const unsub = onSnapshot(
+    return onSnapshot(
       complaintsQuery,
       (snap) => {
-        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setComplaints(rows);
+        setComplaints(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       },
-      (e) => {
-        console.error(e);
-        setErr(e?.message || "Failed to load complaints.");
-      }
+      () => setError("Failed to load complaints.")
     );
-
-    return () => unsub();
   }, [complaintsQuery]);
 
-  if (loading) return null;
   if (!user) return null;
-
-  if (!role) {
-    return (
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <MainCard title="View Complaints">
-            <Stack direction="row" spacing={2} alignItems="center">
-              <CircularProgress size={18} />
-              <Typography>Loading complaints…</Typography>
-            </Stack>
-          </MainCard>
-        </Grid>
-      </Grid>
-    );
-  }
 
   return (
     <Grid container spacing={3}>
       <Grid item xs={12}>
-        <MainCard title={`View Complaints (${role})`}>
+        <MainCard title={`View Complaints (${role || "user"})`}>
           <Stack spacing={2}>
-            {err && <Alert severity="error">{err}</Alert>}
+            {error && <Alert severity="error">{error}</Alert>}
 
-            {!err && complaints.length === 0 && <Alert severity="info">No complaints found.</Alert>}
+            {complaints.length === 0 && !error && (
+              <Alert severity="info">No complaints found.</Alert>
+            )}
 
             {complaints.map((c) => {
               const status = (c.status || "OPEN").toUpperCase();
@@ -153,38 +119,58 @@ export default function ViewComplaintPage() {
                     borderRadius: 2
                   }}
                 >
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                    <Typography variant="h5">{c.subject || "(No subject)"}</Typography>
+                  <Stack
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                  >
+                    <Typography variant="h6">
+                      {c.subject || "(No subject)"}
+                    </Typography>
 
-                    <Stack direction="row" spacing={1} alignItems="center">
+                    <Stack direction="row" spacing={1}>
                       <Chip
                         label={status}
                         size="small"
-                        color={status === "OPEN" ? "warning" : status === "IN_PROGRESS" ? "info" : "success"}
+                        color={
+                          status === "OPEN"
+                            ? "warning"
+                            : status === "IN_PROGRESS"
+                            ? "info"
+                            : "success"
+                        }
                       />
 
-                      {/* ✅ Edit button */}
                       <Button
                         size="small"
                         variant="outlined"
-                        onClick={() => navigate(`/edit-complaint/${c.id}`)}
+                        onClick={() =>
+                          navigate(`/edit-complaint/${c.id}`)
+                        }
                       >
                         View
                       </Button>
                     </Stack>
                   </Stack>
 
-                  <Typography variant="body2" sx={{ mt: 1, whiteSpace: "pre-wrap" }}>
+                  <Typography sx={{ mt: 1 }}>
                     {c.description || ""}
                   </Typography>
 
                   <Divider sx={{ my: 1.5 }} />
 
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="space-between">
-                    <Typography variant="caption">By: {c.createdByEmail || "unknown"}</Typography>
+                  <Stack
+                    direction="row"
+                    justifyContent="space-between"
+                  >
+                    <Typography variant="caption">
+                      By: {c.createdByEmail || "unknown"}
+                    </Typography>
 
                     <Typography variant="caption">
-                      {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString() : ""}
+                      {c.createdAt?.toDate
+                        ? c.createdAt.toDate().toLocaleString()
+                        : ""}
                     </Typography>
                   </Stack>
                 </Box>
