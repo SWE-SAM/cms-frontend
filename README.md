@@ -191,7 +191,13 @@ http://localhost:3000
 > Roles are stored in `users/{uid}.role`
 
 ---
-
+## 🛠 Test Users 
+Admin:firstuser@user.org.uk
+password: firstuser
+User : izi@ko.com
+password: iziko1
+employee : rytis@lol.org.uk
+password: rytis1
 
 
 ## 🛠 Tech Stack
