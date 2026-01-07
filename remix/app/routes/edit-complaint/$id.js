@@ -42,6 +42,7 @@ export default function EditComplaintPage() {
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("OPEN");
   const [employeeComment, setEmployeeComment] = useState("");
+  const [companyId, setCompanyId] = useState("");
 
   const [assignedToUid, setAssignedToUid] = useState("");
   const [employees, setEmployees] = useState([]);
@@ -83,6 +84,7 @@ export default function EditComplaintPage() {
       setStatus(data.status || "OPEN");
       setAssignedToUid(data.assignedToUid || "");
       setEmployeeComment(data.employeeComment || "");
+      setCompanyId(data.companyId || "N/A");
     }
     loadComplaint();
   }, [id]);
@@ -165,6 +167,15 @@ export default function EditComplaintPage() {
           <Stack spacing={2}>
             {error && <Alert severity="error">{error}</Alert>}
             {message && <Alert severity="success">{message}</Alert>}
+
+            <TextField
+              label="Company ID"
+              value={companyId}
+              disabled // Always disabled as this shouldn't be edited manually
+              fullWidth
+              variant="filled" // Optional: gives it a distinct "read-only" look
+            />
+
 
             <TextField
               label="Subject"
