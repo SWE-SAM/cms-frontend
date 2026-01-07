@@ -31,6 +31,7 @@ export default function ViewComplaintPage() {
   const { user, loading } = useAuth();
 
   const [role, setRole] = useState("");
+  const [companyId, setCompanyId] = useState(""); // Added to support companyManager role
   const [complaints, setComplaints] = useState([]);
   const [error, setError] = useState("");
 
@@ -41,13 +42,19 @@ export default function ViewComplaintPage() {
     }
   }, [loading, user, navigate]);
 
-  // Load user role
+  // Load user role and company context
   useEffect(() => {
     if (!user) return;
 
     getDoc(doc(db, "users", user.uid))
       .then((snap) => {
-        setRole(snap.exists() ? snap.data().role || "user" : "user");
+        if (snap.exists()) {
+          const data = snap.data();
+          setRole(data.role || "user");
+          setCompanyId(data.companyId || ""); // Capture companyId for multi-tenancy
+        } else {
+          setRole("user");
+        }
       })
       .catch(() => {
         setError("Failed to load user role.");
@@ -61,10 +68,22 @@ export default function ViewComplaintPage() {
 
     const base = collection(db, "complaints");
 
+    // Global Admin/Manager: sees all complaints
     if (role === "admin" || role === "manager") {
       return query(base, orderBy("createdAt", "desc"));
     }
 
+    // Company Manager: restricted to their own companyId
+    if (role === "companyManager") {
+      if (!companyId) return null; 
+      return query(
+        base,
+        where("companyId", "==", companyId),
+        orderBy("createdAt", "desc")
+      );
+    }
+
+    // Employee: restricted to assigned complaints
     if (role === "employee") {
       return query(
         base,
@@ -73,12 +92,13 @@ export default function ViewComplaintPage() {
       );
     }
 
+    // Consumer: restricted to their own submissions
     return query(
       base,
       where("createdByUid", "==", user.uid),
       orderBy("createdAt", "desc")
     );
-  }, [user, role]);
+  }, [user, role, companyId]); // Added companyId to dependency array
 
   // Subscribe to complaints
   useEffect(() => {
@@ -89,7 +109,10 @@ export default function ViewComplaintPage() {
       (snap) => {
         setComplaints(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       },
-      () => setError("Failed to load complaints.")
+      (err) => {
+        console.error(err);
+        setError("Failed to load complaints. Ensure Firestore indexes are created.");
+      }
     );
   }, [complaintsQuery]);
 
@@ -103,7 +126,7 @@ export default function ViewComplaintPage() {
             {error && <Alert severity="error">{error}</Alert>}
 
             {complaints.length === 0 && !error && (
-              <Alert severity="info">No complaints found.</Alert>
+              <Alert severity="info">No complaints found for your account.</Alert>
             )}
 
             {complaints.map((c) => {
@@ -163,9 +186,17 @@ export default function ViewComplaintPage() {
                     direction="row"
                     justifyContent="space-between"
                   >
-                    <Typography variant="caption">
-                      By: {c.createdByEmail || "unknown"}
-                    </Typography>
+                    <Stack>
+                      <Typography variant="caption" display="block">
+                        By: {c.createdByEmail || "unknown"}
+                      </Typography>
+                      {/* Show company identifier for managers */}
+                      {(role === "admin" || role === "manager") && (
+                        <Typography variant="caption" color="primary">
+                          Tenant: {c.companyId || "N/A"}
+                        </Typography>
+                      )}
+                    </Stack>
 
                     <Typography variant="caption">
                       {c.createdAt?.toDate
