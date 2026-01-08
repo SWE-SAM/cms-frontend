@@ -32,7 +32,8 @@ import { useAuth } from 'context/AuthContext';
 
 // firebase
 import { signOut } from 'firebase/auth';
-import { auth } from 'services/firebase.client';
+import { auth, db } from 'services/firebase.client'; // Added db import
+import { doc, getDoc } from 'firebase/firestore'; // Added firestore imports
 
 // assets
 import { IconLogout, IconSettings } from '@tabler/icons-react';
@@ -47,24 +48,40 @@ const ProfileSection = () => {
 
   const { user } = useAuth();
 
+  // --- ADDED STATE FOR ROLE AND COMPANY ---
+  const [role, setRole] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [open, setOpen] = useState(false);
 
   const anchorRef = useRef(null);
 
-  const displayName =
-    user?.displayName?.trim() ||
-    user?.email ||
-    'User';
+  // --- ADDED FETCH LOGIC ---
+  useEffect(() => {
+    if (!user) return;
 
-  const handleLogout = async (event) => {
+    const loadUserData = async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (snap.exists()) {
+          const data = snap.data();
+          setRole(data.role || 'user');
+          setCompanyId(data.companyId || '');
+        }
+      } catch (err) {
+        console.error('Error fetching profile data:', err);
+      }
+    };
+
+    loadUserData();
+  }, [user]);
+
+  const displayName = user?.displayName?.trim() || user?.email || 'User';
+
+  const handleLogout = async () => {
     try {
-      // close menu immediately for nicer UX
       setOpen(false);
-
       await signOut(auth);
-
-      // send them back to login
       navigate('/pages/login/login3');
     } catch (err) {
       console.error('Logout failed:', err);
@@ -141,12 +158,7 @@ const ProfileSection = () => {
         transition
         disablePortal
         popperOptions={{
-          modifiers: [
-            {
-              name: 'offset',
-              options: { offset: [0, 14] }
-            }
-          ]
+          modifiers: [{ name: 'offset', options: { offset: [0, 14] } }]
         }}
       >
         {({ TransitionProps }) => (
@@ -162,20 +174,15 @@ const ProfileSection = () => {
                           {displayName}
                         </Typography>
                       </Stack>
-
-                      {/* Optional: show role label if you want, otherwise remove */}
-                      <Typography variant="subtitle2">Consumer</Typography>
+                      {/* ROLE AND COMPANY NOW WORK BECAUSE STATE IS DEFINED */}
+                      <Typography variant="subtitle2" sx={{ textTransform: 'capitalize', mt: 0.5 }}>
+                        <strong>{role}</strong> {companyId && `(${companyId})`}
+                      </Typography>
                     </Stack>
                     <Divider sx={{ mt: 2 }} />
                   </Box>
 
-                  <PerfectScrollbar
-                    style={{
-                      height: '100%',
-                      maxHeight: 'calc(100vh - 250px)',
-                      overflowX: 'hidden'
-                    }}
-                  >
+                  <PerfectScrollbar style={{ height: '100%', maxHeight: 'calc(100vh - 250px)', overflowX: 'hidden' }}>
                     <Box sx={{ p: 2 }}>
                       <List
                         component="nav"

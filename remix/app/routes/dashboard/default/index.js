@@ -29,8 +29,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
 
-  // role: user | employee | manager | admin
+  // role: user | employee | manager | admin | companyManager
   const [role, setRole] = useState(null);
+  const [companyId, setCompanyId] = useState(""); // Added to store company context
 
   // simple stats object
   const [stats, setStats] = useState({
@@ -49,14 +50,20 @@ export default function Dashboard() {
     }
   }, [loading, user, navigate]);
 
-  // Load the user role from Firestore
+  // Load the user role and companyId from Firestore
   useEffect(() => {
     if (!user) return;
 
     async function loadRole() {
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
-        setRole(snap.exists() ? snap.data().role : "user");
+        if (snap.exists()) {
+          const data = snap.data();
+          setRole(data.role || "user");
+          setCompanyId(data.companyId || ""); // Capture the companyId
+        } else {
+          setRole("user");
+        }
       } catch (e) {
         console.error(e);
         setError("Failed to load user role");
@@ -78,16 +85,19 @@ export default function Dashboard() {
         let baseQuery;
 
         if (role === "admin" || role === "manager") {
-          // Admin / manager see everything
           baseQuery = query(complaintsRef);
+        } else if (role === "companyManager") {
+          // Filter by companyId for the companyManager role
+          baseQuery = query(
+            complaintsRef,
+            where("companyId", "==", companyId)
+          );
         } else if (role === "employee") {
-          // Employees only see complaints assigned to them
           baseQuery = query(
             complaintsRef,
             where("assignedToUid", "==", user.uid)
           );
         } else {
-          // Normal users only see complaints they created
           baseQuery = query(
             complaintsRef,
             where("createdByUid", "==", user.uid)
@@ -95,19 +105,13 @@ export default function Dashboard() {
         }
 
         // Count totals by status
-        const totalSnap = await getCountFromServer(baseQuery);
-
-        const openSnap = await getCountFromServer(
-          query(baseQuery, where("status", "==", "OPEN"))
-        );
-
-        const inProgressSnap = await getCountFromServer(
-          query(baseQuery, where("status", "==", "IN_PROGRESS"))
-        );
-
-        const resolvedSnap = await getCountFromServer(
-          query(baseQuery, where("status", "==", "RESOLVED"))
-        );
+        // Note: These counts may require composite indexes if companyId/assignedToUid is used
+        const [totalSnap, openSnap, inProgressSnap, resolvedSnap] = await Promise.all([
+          getCountFromServer(baseQuery),
+          getCountFromServer(query(baseQuery, where("status", "==", "OPEN"))),
+          getCountFromServer(query(baseQuery, where("status", "==", "IN_PROGRESS"))),
+          getCountFromServer(query(baseQuery, where("status", "==", "RESOLVED")))
+        ]);
 
         setStats({
           total: totalSnap.data().count,
@@ -117,12 +121,12 @@ export default function Dashboard() {
         });
       } catch (e) {
         console.error(e);
-        setError("Failed to load dashboard data");
+        setError("Failed to load dashboard data. Check your Firestore indexes.");
       }
     }
 
     loadStats();
-  }, [user, role]);
+  }, [user, role, companyId]); // Added companyId as a dependency
 
   if (!user || !role) return null;
 
@@ -131,7 +135,7 @@ export default function Dashboard() {
       <Grid item xs={12}>
         <MainCard title="Dashboard">
           <Typography variant="body1">
-            Logged in as: <strong>{role}</strong>
+            Logged in as: <strong>{role}</strong> {companyId && `(${companyId})`}
           </Typography>
         </MainCard>
       </Grid>
