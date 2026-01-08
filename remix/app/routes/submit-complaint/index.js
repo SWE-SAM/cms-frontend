@@ -15,7 +15,9 @@ import { useAuth } from "context/AuthContext";
 import {
   addDoc,
   collection,
-  serverTimestamp
+  serverTimestamp,
+  doc,
+  getDoc
 } from "firebase/firestore";
 
 import { db } from "services/firebase.client";
@@ -50,11 +52,23 @@ export default function SubmitComplaint() {
     }
 
     try {
+      // 1. Fetch the user's profile to get their companyId
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      
+      let userCompanyId = "";
+      if (userSnap.exists()) {
+        userCompanyId = userSnap.data().companyId || "";
+      }
+
+      // 2. Add the complaint with the companyId field
       await addDoc(collection(db, "complaints"), {
         subject: subject.trim(),
         description: description.trim(),
         status: "OPEN",
+        companyId: userCompanyId, // CRITICAL: This links the complaint to the company
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
         createdByUid: user.uid,
         createdByEmail: user.email
       });
@@ -64,7 +78,7 @@ export default function SubmitComplaint() {
       setDescription("");
     } catch (e) {
       console.error(e);
-      setError("Failed to submit complaint.");
+      setError("Failed to submit complaint. Check console for details.");
     }
   };
 

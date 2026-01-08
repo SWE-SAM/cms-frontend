@@ -51,14 +51,14 @@ export default function EditComplaintPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  // Redirect if not logged in
+  // 1. Redirect if not logged in
   useEffect(() => {
     if (!loading && !user) {
       navigate("/pages/login/login3", { replace: true });
     }
   }, [loading, user, navigate]);
 
-  // Load user role and their company context
+  // 2. Load user role and their company context
   useEffect(() => {
     async function loadRole() {
       if (!user) return;
@@ -72,7 +72,7 @@ export default function EditComplaintPage() {
     loadRole();
   }, [user]);
 
-  // Load complaint data
+  // 3. Load complaint data
   useEffect(() => {
     async function loadComplaint() {
       const snap = await getDoc(doc(db, "complaints", id));
@@ -98,10 +98,10 @@ export default function EditComplaintPage() {
   const isCompanyManager = role === "companyManager";
   const isEmployee = role === "employee";
   
-  // Verify if the complaint belongs to the manager's company
+  // 
   const isSameCompany = complaint?.companyId === userCompanyId;
-  const isOwner = complaint?.createdByUid === user.uid;
-  const isAssignedEmployee = isEmployee && complaint?.assignedToUid === user.uid;
+  const isOwner = user?.uid && complaint?.createdByUid === user.uid;
+  const isAssignedEmployee = isEmployee && user?.uid && complaint?.assignedToUid === user.uid;
 
   // Final permission flags
   const hasManagementRights = isGlobalAdminOrManager || (isCompanyManager && isSameCompany);
@@ -110,32 +110,39 @@ export default function EditComplaintPage() {
   const canEditStatus = hasManagementRights || isAssignedEmployee;
   const canEditComment = hasManagementRights || isAssignedEmployee;
   const canAssign = hasManagementRights;
-  const canDelete = hasManagementRights; 
+  const canDelete = hasManagementRights;
 
-  // Load employees 
+  // 4. Load employees 
   useEffect(() => {
-    if (!canAssign) return;
+    // 
+    if (!canAssign || !complaint || !userCompanyId) return;
 
     async function loadEmployees() {
-      let q;
-      if (isCompanyManager) {
-        // Multi-tenant isolation: only see employees in own company
-        q = query(
-          collection(db, "users"), 
-          where("role", "==", "employee"),
-          where("companyId", "==", userCompanyId)
-        );
-      } else {
-        // Global staff see everyone
-        q = query(collection(db, "users"), where("role", "==", "employee"));
-      }
+      try {
+        let q;
+        if (isCompanyManager) {
+          // Filter by role AND companyId
+          q = query(
+            collection(db, "users"), 
+            where("role", "==", "employee"),
+            where("companyId", "==", userCompanyId)
+          );
+        } else {
+          // Admins see all employees
+          q = query(collection(db, "users"), where("role", "==", "employee"));
+        }
 
-      const snap = await getDocs(q);
-      setEmployees(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
+        const snap = await getDocs(q);
+        setEmployees(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
+      } catch (err) {
+        console.error("Error loading employees:", err);
+        
+        setError("Could not load employee list. Check console for index link.");
+      }
     }
 
     loadEmployees();
-  }, [canAssign, isCompanyManager, userCompanyId]);
+  }, [canAssign, isCompanyManager, userCompanyId, complaint]);
 
   const handleSave = async () => {
     setError("");
@@ -238,16 +245,19 @@ export default function EditComplaintPage() {
 
             {canAssign && (
               <FormControl fullWidth>
-                <InputLabel>Assign to employee</InputLabel>
+                <InputLabel id="assign-label">Assign to employee</InputLabel>
                 <Select
-                  value={assignedToUid}
+                  labelId="assign-label"
+                  value={assignedToUid || ""}
                   label="Assign to employee"
                   onChange={(e) => setAssignedToUid(e.target.value)}
                 >
-                  <MenuItem value="">Unassigned</MenuItem>
+                  <MenuItem value="">
+                    <em>Unassigned</em>
+                  </MenuItem>
                   {employees.map((e) => (
                     <MenuItem key={e.uid} value={e.uid}>
-                      {e.firstName} {e.lastName} ({e.companyId})
+                      {e.firstName || e.email} {e.lastName || ""}
                     </MenuItem>
                   ))}
                 </Select>
