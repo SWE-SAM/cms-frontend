@@ -51,14 +51,14 @@ export default function EditComplaintPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  // 1. Redirect if not logged in
+  // redirect if not logged in
   useEffect(() => {
     if (!loading && !user) {
       navigate("/pages/login/login3", { replace: true });
     }
   }, [loading, user, navigate]);
 
-  // 2. Load user role and their company context
+  
   useEffect(() => {
     async function loadRole() {
       if (!user) return;
@@ -72,7 +72,7 @@ export default function EditComplaintPage() {
     loadRole();
   }, [user]);
 
-  // 3. Load complaint data
+  
   useEffect(() => {
     async function loadComplaint() {
       const snap = await getDoc(doc(db, "complaints", id));
@@ -93,17 +93,17 @@ export default function EditComplaintPage() {
     loadComplaint();
   }, [id]);
 
-  // Permission Logic 
+  // Permissions 
   const isGlobalAdminOrManager = role === "admin" || role === "manager";
   const isCompanyManager = role === "companyManager";
   const isEmployee = role === "employee";
   
-  // 
+  
   const isSameCompany = complaint?.companyId === userCompanyId;
   const isOwner = user?.uid && complaint?.createdByUid === user.uid;
   const isAssignedEmployee = isEmployee && user?.uid && complaint?.assignedToUid === user.uid;
 
-  // Final permission flags
+  
   const hasManagementRights = isGlobalAdminOrManager || (isCompanyManager && isSameCompany);
 
   const canEditFields = hasManagementRights || isOwner;
@@ -112,9 +112,9 @@ export default function EditComplaintPage() {
   const canAssign = hasManagementRights;
   const canDelete = hasManagementRights;
 
-  // 4. Load employees 
+  
   useEffect(() => {
-    // 
+    
     if (!canAssign || !complaint || !userCompanyId) return;
 
     async function loadEmployees() {

@@ -51,7 +51,7 @@ export default function ViewComplaintPage() {
         if (snap.exists()) {
           const data = snap.data();
           setRole(data.role || "user");
-          setCompanyId(data.companyId || ""); // multi-tenancy
+          setCompanyId(data.companyId || ""); 
         } else {
           setRole("user");
         }
@@ -62,18 +62,18 @@ export default function ViewComplaintPage() {
       });
   }, [user]);
 
-  // Build query based on role
+  
   const complaintsQuery = useMemo(() => {
     if (!user || !role) return null;
 
     const base = collection(db, "complaints");
 
-    // Global Admin/Manager: sees all complaints
+    // Admin/Manager
     if (role === "admin" || role === "manager") {
       return query(base, orderBy("createdAt", "desc"));
     }
 
-    // Company Manager: restricted to their own companyId
+    // Company Manager
     if (role === "companyManager") {
       if (!companyId) return null; 
       return query(
@@ -83,7 +83,7 @@ export default function ViewComplaintPage() {
       );
     }
 
-    // Employee: restricted to assigned complaints
+    // Employee
     if (role === "employee") {
       return query(
         base,
@@ -92,7 +92,7 @@ export default function ViewComplaintPage() {
       );
     }
 
-    // Consumer: restricted to their own submissions
+    // Customer
     return query(
       base,
       where("createdByUid", "==", user.uid),
@@ -100,7 +100,7 @@ export default function ViewComplaintPage() {
     );
   }, [user, role, companyId]); 
 
-  // Subscribe to complaints
+  
   useEffect(() => {
     if (!complaintsQuery) return;
 
@@ -190,7 +190,7 @@ export default function ViewComplaintPage() {
                       <Typography variant="caption" display="block">
                         By: {c.createdByEmail || "unknown"}
                       </Typography>
-                      {/* Show company identifier for managers */}
+                      {/* manager identifier */}
                       {(role === "admin" || role === "manager") && (
                         <Typography variant="caption" color="primary">
                           Tenant: {c.companyId || "N/A"}

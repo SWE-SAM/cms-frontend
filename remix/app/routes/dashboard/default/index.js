@@ -33,7 +33,7 @@ export default function Dashboard() {
   const [role, setRole] = useState(null);
   const [companyId, setCompanyId] = useState(""); 
 
-  // simple stats object
+  // simple stats 
   const [stats, setStats] = useState({
     total: 0,
     open: 0,
@@ -50,7 +50,7 @@ export default function Dashboard() {
     }
   }, [loading, user, navigate]);
 
-  // Load the user role and companyId from Firestore
+  // Load the user role and companyId 
   useEffect(() => {
     if (!user) return;
 
@@ -60,7 +60,7 @@ export default function Dashboard() {
         if (snap.exists()) {
           const data = snap.data();
           setRole(data.role || "user");
-          setCompanyId(data.companyId || ""); // Capture the companyId
+          setCompanyId(data.companyId || ""); 
         } else {
           setRole("user");
         }
@@ -73,7 +73,7 @@ export default function Dashboard() {
     loadRole();
   }, [user]);
 
-  // Load complaint counts based on role
+  
   useEffect(() => {
     if (!user || !role) return;
 
@@ -81,13 +81,13 @@ export default function Dashboard() {
       try {
         const complaintsRef = collection(db, "complaints");
 
-        // Decide which complaints this user is allowed to see
+        
         let baseQuery;
 
         if (role === "admin" || role === "manager") {
           baseQuery = query(complaintsRef);
         } else if (role === "companyManager") {
-          // Filter by companyId for the companyManager role
+          
           baseQuery = query(
             complaintsRef,
             where("companyId", "==", companyId)
@@ -104,7 +104,7 @@ export default function Dashboard() {
           );
         }
 
-        // Count totals by status
+        // Count totals 
         
         const [totalSnap, openSnap, inProgressSnap, resolvedSnap] = await Promise.all([
           getCountFromServer(baseQuery),

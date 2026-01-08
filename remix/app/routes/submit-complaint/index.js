@@ -52,7 +52,7 @@ export default function SubmitComplaint() {
     }
 
     try {
-      // 1. Fetch the user's profile to get their companyId
+      
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
       
@@ -61,12 +61,12 @@ export default function SubmitComplaint() {
         userCompanyId = userSnap.data().companyId || "";
       }
 
-      // 2. Add the complaint with the companyId field
+      
       await addDoc(collection(db, "complaints"), {
         subject: subject.trim(),
         description: description.trim(),
         status: "OPEN",
-        companyId: userCompanyId, // CRITICAL: This links the complaint to the company
+        companyId: userCompanyId, 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdByUid: user.uid,
