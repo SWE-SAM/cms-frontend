@@ -31,7 +31,7 @@ export default function Dashboard() {
 
   // role: user | employee | manager | admin | companyManager
   const [role, setRole] = useState(null);
-  const [companyId, setCompanyId] = useState(""); // Added to store company context
+  const [companyId, setCompanyId] = useState(""); 
 
   // simple stats object
   const [stats, setStats] = useState({
@@ -105,7 +105,7 @@ export default function Dashboard() {
         }
 
         // Count totals by status
-        // Note: These counts may require composite indexes if companyId/assignedToUid is used
+        
         const [totalSnap, openSnap, inProgressSnap, resolvedSnap] = await Promise.all([
           getCountFromServer(baseQuery),
           getCountFromServer(query(baseQuery, where("status", "==", "OPEN"))),
@@ -126,7 +126,7 @@ export default function Dashboard() {
     }
 
     loadStats();
-  }, [user, role, companyId]); // Added companyId as a dependency
+  }, [user, role, companyId]); 
 
   if (!user || !role) return null;
 

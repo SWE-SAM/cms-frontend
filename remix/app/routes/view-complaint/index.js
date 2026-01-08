@@ -31,7 +31,7 @@ export default function ViewComplaintPage() {
   const { user, loading } = useAuth();
 
   const [role, setRole] = useState("");
-  const [companyId, setCompanyId] = useState(""); // Added to support companyManager role
+  const [companyId, setCompanyId] = useState(""); 
   const [complaints, setComplaints] = useState([]);
   const [error, setError] = useState("");
 
@@ -51,7 +51,7 @@ export default function ViewComplaintPage() {
         if (snap.exists()) {
           const data = snap.data();
           setRole(data.role || "user");
-          setCompanyId(data.companyId || ""); // Capture companyId for multi-tenancy
+          setCompanyId(data.companyId || ""); // multi-tenancy
         } else {
           setRole("user");
         }
@@ -98,7 +98,7 @@ export default function ViewComplaintPage() {
       where("createdByUid", "==", user.uid),
       orderBy("createdAt", "desc")
     );
-  }, [user, role, companyId]); // Added companyId to dependency array
+  }, [user, role, companyId]); 
 
   // Subscribe to complaints
   useEffect(() => {

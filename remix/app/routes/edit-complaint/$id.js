@@ -36,14 +36,14 @@ export default function EditComplaintPage() {
   const { user, loading } = useAuth();
 
   const [role, setRole] = useState(null);
-  const [userCompanyId, setUserCompanyId] = useState(null); // Manager's company context
+  const [userCompanyId, setUserCompanyId] = useState(null); 
   const [complaint, setComplaint] = useState(null);
 
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("OPEN");
   const [employeeComment, setEmployeeComment] = useState("");
-  const [companyId, setCompanyId] = useState(""); // The complaint's companyId
+  const [companyId, setCompanyId] = useState(""); 
 
   const [assignedToUid, setAssignedToUid] = useState("");
   const [employees, setEmployees] = useState([]);
@@ -93,7 +93,7 @@ export default function EditComplaintPage() {
     loadComplaint();
   }, [id]);
 
-  // Permission Logic [ADR-004, ADR-007]
+  // Permission Logic 
   const isGlobalAdminOrManager = role === "admin" || role === "manager";
   const isCompanyManager = role === "companyManager";
   const isEmployee = role === "employee";
@@ -110,9 +110,9 @@ export default function EditComplaintPage() {
   const canEditStatus = hasManagementRights || isAssignedEmployee;
   const canEditComment = hasManagementRights || isAssignedEmployee;
   const canAssign = hasManagementRights;
-  const canDelete = hasManagementRights; // Per your rule: Owner can't delete anymore
+  const canDelete = hasManagementRights; 
 
-  // Load employees (Filtered by company for companyManagers)
+  // Load employees 
   useEffect(() => {
     if (!canAssign) return;
 
